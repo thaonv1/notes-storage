@@ -6,9 +6,9 @@
 
 Môi trường:
 
-Virtualization: KVM
-OS: CentOS 7
-Ceph version: Mimic
+- Virtualization: KVM
+- OS: CentOS 7
+- Ceph version: Mimic
 
 ## 2. Hướng dẫn cài đặt môi trường
 
@@ -25,11 +25,14 @@ Ceph version: Mimic
 - Cài đặt packages
 
 ```
-yum install -y chrony openssh-server
-yum install python-setuptools
+yum install -y chrony openssh-server python-setuptools yum-plugin-priorities
+```
+
+- Nếu openssh chưa được kích hoạt
+
+```
 systemctl start sshd
 systemctl enable sshd
-yum install -y yum-plugin-priorities
 ```
 
 - Thêm file host
@@ -87,7 +90,6 @@ EOM
 
 ```
 yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-sudo yum update
 sudo yum install -y ceph-deploy
 ```
 - Xóa repo ceph vừa tạo
@@ -97,10 +99,10 @@ sudo yum install -y ceph-deploy
 - Khởi tạo và copy key sang các máy khác
 
 ```
-ssh-keygen
-sudo ssh-copy-id ceph-deploy@ceph1
-sudo ssh-copy-id ceph-deploy@ceph2
-sudo ssh-copy-id ceph-deploy@ceph3
+ssh-keygen -t rsa -f /root/.ssh/id_rsa -q -P ""
+sudo ssh-copy-id -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa.pub ceph-deploy@ceph1
+sudo ssh-copy-id -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa.pub ceph-deploy@ceph2
+sudo ssh-copy-id -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa.pub ceph-deploy@ceph3
 ```
 
 Nhập pass khi được yêu cầu.
@@ -108,8 +110,7 @@ Nhập pass khi được yêu cầu.
 - Cấu hình ssh config
 
 ```
-vi  ~/.ssh/config
-
+cat <<EOF>>  ~/.ssh/config
 Host ceph1
    Hostname ceph1
    User ceph-deploy
@@ -119,6 +120,7 @@ Host ceph2
 Host ceph3
    Hostname ceph3
    User ceph-deploy
+EOF
 ```
 
 - Cấu hình time
@@ -221,3 +223,11 @@ ceph-deploy mon add ceph3
 - Kiểm tra trạng thái
 
 `ceph -s`
+
+- thêm osd
+
+```
+ceph-deploy osd create --data /dev/vda ceph1
+ceph-deploy osd create --data /dev/vda ceph2
+ceph-deploy osd create --data /dev/vda ceph3
+```
