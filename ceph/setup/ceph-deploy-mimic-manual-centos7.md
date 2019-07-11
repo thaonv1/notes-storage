@@ -93,6 +93,17 @@ yum install ceph -y
 
 ## 3. Khởi tạo và cấu hình ceph
 
+Để có thể bootstrap được một cluster ceph, ta cần một số thứ sau:
+
+- Unique Identifier: `fsid` chính là id định danh duy nhất của cluster, viết tắt của `File System ID`, tên này có từ hồi ceph chỉ focus vào file system.
+- Cluster Name: Tên của cluster mặc định sẽ là ceph
+- Monitor Name: Mỗi một mon instance sẽ có 1 cái tên, thường thì nó là hostname vì mỗi một host thường sẽ chạy 1 mon.
+- Monitor Map: Để bootstrap initial monitor bạn cần tạo monitor map. Mon map này yêu cầu fsid, cluster name và ít nhất 1 host name và ip
+- Monitor Keyring: Các mon giao tiếp với nhau thông qua keyring
+- Administrator Keyring: Để sử dụng Ceph cli, bạn cần phải có user `client.admin`. vì thế bạn cần phải gen user và keyring đồng thời add user vào monitor keyring.
+
+**Các bước cụ thể:**
+
 - Gen uuid trên node bất kì
 
 `uuidgen`
@@ -105,8 +116,8 @@ cat <<EOF> /etc/ceph/ceph.conf
 fsid = 3329642c-6e79-4e89-9e06-5443f102011e
 public network = 192.168.40.0/24
 cluster network = 192.168.40.0/24
-mon initial members = ceph1, ceph2, ceph3
-mon host =  192.168.40.21, 192.168.40.22, 192.168.40.23
+mon initial members = ceph1
+mon host =  192.168.40.21
 auth cluster required = cephx
 auth service required = cephx
 auth client required = cephx
@@ -118,6 +129,11 @@ osd pool default pgp num = 100
 osd crush chooseleaf type = 1
 EOF
 ```
+
+Trong đó, lưu ý 1 số cấu hình quan trọng:
+
+- `mon initial members`: Ceph yêu cầu tối thiểu là 1 mon, option này sẽ define initial monitor bắt buộc phải là member của cluster nếu muốn tạo quorum. Vì thế nếu bạn define 3 member thì bạn sẽ phải đảm bảo nó up toàn bộ.
+- `osd pool default min size`: Số lượng bản replica tối thiểu, trong trường hợp nhỏ hơn, ceph sẽ không cho client write.
 
 **Lưu ý:**
 
@@ -150,7 +166,7 @@ sudo ceph-authtool /tmp/ceph.mon.keyring --import-keyring /var/lib/ceph/bootstra
 
 ví dụ:
 
-`monmaptool --create --add ceph1 192.168.40.21 --add ceph2 192.168.40.22 --add ceph3 192.168.40.23 --fsid 3329642c-6e79-4e89-9e06-5443f102011e /tmp/monmap`
+`monmaptool --create --add ceph1 192.168.40.21 --fsid 3329642c-6e79-4e89-9e06-5443f102011e /tmp/monmap`
 
 - Khởi tạo thư mục mặc định trên monitor host
 
@@ -184,6 +200,77 @@ Ví dụ:
 ```
 sudo systemctl start ceph-mon@ceph1
 systemctl enable ceph-mon@ceph1
+```
+
+- Kiểm tra cluster
+
+`ceph -s`
+
+**Lưu ý:**
+
+- Khuyến cáo ta cần chạy ít nhất 3 mon để đảm bảo quá trình quorum hoạt động. Vì thế, ta nên add thêm 2 mon trên 2 host còn lại.
+
+- Đầu tiên, ta sẽ copy keyring của client.admin để thực thi ceph cli trên 2 node còn lại. Từ máy chủ `ceph1`:
+
+```
+scp /etc/ceph/ceph.client.admin.keyring root@ceph2:/etc/ceph/ceph.client.admin.keyring
+scp /etc/ceph/ceph.client.admin.keyring root@ceph3:/etc/ceph/ceph.client.admin.keyring
+```
+- Tiếp tục tạo thư mục cho mon trên 2 node còn lại
+
+```
+sudo -u ceph mkdir /var/lib/ceph/mon/ceph-ceph2
+sudo -u ceph mkdir /var/lib/ceph/mon/ceph-ceph3
+```
+
+- Tiếp theo ta cần gen keyring và monmap trên 2 node còn lại
+
+```
+ceph auth get mon. -o keyring
+ceph mon getmap -o monmap
+```
+
+Hoặc ta có thể copy từ máy chủ `ceph1` qua
+
+```
+scp /tmp/monmap root@ceph2:/tmp/monmap
+scp /tmp/ceph.mon.keyring  root@2:/tmp/ceph.mon.keyring
+```
+
+Làm tương tự với node `ceph3`
+
+- Phần quyền
+
+```
+chown ceph:ceph keyring
+chown ceph:ceph monmap
+```
+
+- Khởi tạo mon từ key và monmap trên 2 node còn lại
+
+```
+sudo -u ceph ceph-mon --mkfs -i ceph2 --monmap monmap --keyring keyring
+sudo -u ceph ceph-mon --mkfs -i ceph3 --monmap monmap --keyring keyring
+
+```
+
+- Tạo `done` file
+
+```
+sudo touch /var/lib/ceph/mon/ceph-ceph2/done
+sudo touch /var/lib/ceph/mon/ceph-ceph3/done
+```
+
+- start monitor
+
+```
+sudo systemctl start ceph-mon@ceph2
+systemctl enable ceph-mon@ceph2
+```
+
+```
+sudo systemctl start ceph-mon@ceph3
+systemctl enable ceph-mon@ceph3
 ```
 
 ## 4. Mở rộng cluster
@@ -225,4 +312,22 @@ systemctl enable ceph-mgr@ceph1.service
 ceph-volume lvm zap /dev/vdb
 
 ceph-volume lvm create --data /dev/vdb
+```
+
+**Hoặc bạn cũng có thể tạo osd theo cách thủ công**
+
+- Lấy key bootstrap OSD
+
+`ceph auth get client.bootstrap-osd -o /var/lib/ceph/bootstrap-osd/ceph.keyring`
+
+- Tạo osd
+
+```
+ceph-volume lvm zap /dev/vdb
+
+sudo ceph-volume lvm prepare --data /dev/vdb
+
+ceph-volume lvm list
+
+sudo ceph-volume lvm activate {ID} {FSID}
 ```
