@@ -12,6 +12,10 @@ Môi trường:
 
 ## 2. Hướng dẫn cài đặt môi trường trên cả 3 node
 
+- Cấu hình hostname
+
+`hostnamectl set-hostname {ceph1,ceph2,ceph3}`
+
 - Cấu hình file host
 
 ```
@@ -146,15 +150,15 @@ sudo ceph-authtool /tmp/ceph.mon.keyring --import-keyring /var/lib/ceph/bootstra
 
 ví dụ:
 
-`monmaptool --create --add ceph_node1 192.168.50.145 --add ceph_node2 192.168.50.146 --add ceph_node3 192.168.50.147 --fsid 3329642c-6e79-4e89-9e06-5443f102011e /tmp/monmap`
+`monmaptool --create --add ceph1 192.168.40.21 --add ceph2 192.168.40.22 --add ceph3 192.168.40.23 --fsid 3329642c-6e79-4e89-9e06-5443f102011e /tmp/monmap`
 
 - Khởi tạo thư mục mặc định trên monitor host
 
-`sudo mkdir /var/lib/ceph/mon/{cluster-name}-{hostname}`
+`sudo -u ceph mkdir /var/lib/ceph/mon/{cluster-name}-{hostname}`
 
 Ví dụ:
 
-`sudo mkdir /var/lib/ceph/mon/ceph-ceph1`
+`sudo -u ceph mkdir /var/lib/ceph/mon/ceph-ceph1`
 
 - Phân quyền
 
@@ -173,7 +177,7 @@ Ví dụ:
 
 - Tạo `done` file
 
-`sudo touch /var/lib/ceph/mon/ceph-node1/done`
+`sudo touch /var/lib/ceph/mon/ceph-ceph1/done`
 
 - start monitor
 
