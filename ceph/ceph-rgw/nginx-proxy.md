@@ -50,7 +50,7 @@ allow-update { none; };
 - Sửa file `/etc/resolv.conf`
 
 ```
-search ducnm37.com
+search thaonv.com
 nameserver 10.10.11.242
 ```
 
@@ -157,8 +157,8 @@ New settings:
   Access Key: FI3ZBVBF8SI1FNLMHX9M
   Secret Key: K6Fne8250Yydq0efQzhnfRH89aXVDSozxY8YX3gR
   Default Region: US
-  S3 Endpoint: cephaio.thanhbaba.xyz
-  DNS-style bucket+hostname:port template for accessing a bucket: %(bucket)s.cephaio.thanhbaba.xyz
+  S3 Endpoint: cephaio.thaonv.com
+  DNS-style bucket+hostname:port template for accessing a bucket: %(bucket)s.cephaio.thaonv.com
   Encryption password:
   Path to GPG program: /usr/bin/gpg
   Use HTTPS protocol: True
