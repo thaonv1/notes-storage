@@ -9,7 +9,7 @@
 
 ### 1. Mô hình
 
-<img src="../images/ceph-rgw.png">
+<img src="../../images/ceph-rgw.png">
 
 ### 2. Cấu hình Ceph cluster
 
@@ -77,9 +77,9 @@ Kiểm tra các osd hiện có
 
 Tính toán để tạo ra các pool mới. Vì ở đây mình sử dụng SSD cho các service pool kèm với index và extra pool nên mình sẽ chia như sau
 
-<img src="../images/pgcal1.png">
+<img src="../../images/pgcal1.png">
 
-<img src="../images/pgcal2.png">
+<img src="../../images/pgcal2.png">
 
 ```
 ceph osd pool create .rgw.root 4
