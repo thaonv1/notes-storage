@@ -1,4 +1,4 @@
-# Hướng dẫn cài đặt CEPH mimic bằng ceph-deploy trên CentOS 7
+# Hướng dẫn cài đặt CEPH nautilus bằng ceph-deploy trên CentOS 7
 
 ## 1. Mô hình
 

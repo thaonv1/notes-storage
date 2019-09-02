@@ -70,3 +70,306 @@ ceph osd pool delete default.rgw.control default.rgw.control --yes-i-really-real
 ceph osd pool delete default.rgw.meta default.rgw.meta --yes-i-really-really-mean-it
 ceph osd pool delete default.rgw.log default.rgw.log --yes-i-really-really-mean-it
 ```
+
+Kiểm tra các osd hiện có
+
+`ceph osd tree`
+
+Tính toán để tạo ra các pool mới. Vì ở đây mình sử dụng SSD cho các service pool kèm với index và extra pool nên mình sẽ chia như sau
+
+<img src="../images/pgcal1.png">
+
+<img src="../images/pgcal2.png">
+
+```
+ceph osd pool create .rgw.root 4
+ceph osd pool create hn.rgw.control 4
+ceph osd pool create hn.rgw.log 32
+ceph osd pool create hn.rgw.meta 16
+ceph osd pool create hn.rgw.otp 4
+ceph osd pool create hn.rgw.buckets.non-ec 32
+ceph osd pool create hn.rgw.buckets.index 128
+ceph osd pool create hn.rgw.buckets.data 256
+```
+
+Enable service application cho các pool vừa tạo
+
+```
+ceph osd pool application enable .rgw.root rgw
+ceph osd pool application enable hn.rgw.control rgw
+ceph osd pool application enable hn.rgw.log rgw
+ceph osd pool application enable hn.rgw.meta rgw
+ceph osd pool application enable hn.rgw.otp rgw
+ceph osd pool application enable hn.rgw.buckets.non-ec rgw
+ceph osd pool application enable hn.rgw.buckets.index rgw
+ceph osd pool application enable hn.rgw.buckets.data rgw
+```
+
+Bổ sung config không cho phép tự động cập nhật crushmap trong file `ceph.conf` ở thư mục `my-cluster`
+
+```
+cat << EOF >> ceph.conf
+
+osd_crush_update_on_start = false
+EOF
+```
+
+Push config sang các node
+
+`ceph-deploy --overwrite-conf config push ceph1 ceph2 ceph3`
+
+Thực hiện restart lại ceph-mon service trên toàn bộ các node
+
+`systemctl restart ceph-mon@$(hostname)`
+
+Kiểm tra các osd ở trên cả 3 node
+
+```
+[root@ceph1 my-cluster]# ceph osd tree
+ID CLASS WEIGHT  TYPE NAME      STATUS REWEIGHT PRI-AFF
+-1       0.17014 root default
+-3       0.09579     host ceph1
+ 0   hdd 0.04790         osd.0      up  1.00000 1.00000
+ 1   hdd 0.04790         osd.1      up  1.00000 1.00000
+-5       0.05576     host ceph2
+ 2   hdd 0.01859         osd.2      up  1.00000 1.00000
+ 3   hdd 0.01859         osd.3      up  1.00000 1.00000
+ 4   hdd 0.01859         osd.4      up  1.00000 1.00000
+-7       0.01859     host ceph3
+ 5   hdd 0.01859         osd.5      up  1.00000 1.00000
+```
+
+Giả sử 3 osd là `0,2,5` là ổ ssd, ta sẽ thay đổi crush map để các pool mong muốn sử dụng các ổ này
+
+Đầu tiên, xóa bỏ device class của 3 osd trên và set cho chúng class mới
+
+```
+ceph osd crush rm-device-class osd.0
+ceph osd crush rm-device-class osd.2
+ceph osd crush rm-device-class osd.5
+
+ceph osd crush set-device-class ssd osd.0
+ceph osd crush set-device-class ssd osd.2
+ceph osd crush set-device-class ssd osd.5
+```
+
+Kiểm tra lại
+
+```
+[root@ceph1 my-cluster]# ceph osd tree
+ID CLASS WEIGHT  TYPE NAME      STATUS REWEIGHT PRI-AFF
+-1       0.17014 root default
+-3       0.09579     host ceph1
+ 1   hdd 0.04790         osd.1      up  1.00000 1.00000
+ 0   ssd 0.04790         osd.0      up  1.00000 1.00000
+-5       0.05576     host ceph2
+ 3   hdd 0.01859         osd.3      up  1.00000 1.00000
+ 4   hdd 0.01859         osd.4      up  1.00000 1.00000
+ 2   ssd 0.01859         osd.2      up  1.00000 1.00000
+-7       0.01859     host ceph3
+ 5   ssd 0.01859         osd.5      up  1.00000 1.00000
+```
+
+Kiểm tra các rule hiện có
+
+`ceph osd crush rule ls`
+
+Kết quả
+
+`replicated_rule`
+
+Dump chi tiết của 1 rule
+
+```
+[root@ceph1 my-cluster]# ceph osd crush rule dump
+[
+    {
+        "rule_id": 0,
+        "rule_name": "replicated_rule",
+        "ruleset": 0,
+        "type": 1,
+        "min_size": 1,
+        "max_size": 10,
+        "steps": [
+            {
+                "op": "take",
+                "item": -1,
+                "item_name": "default"
+            },
+            {
+                "op": "chooseleaf_firstn",
+                "num": 0,
+                "type": "host"
+            },
+            {
+                "op": "emit"
+            }
+        ]
+    }
+]
+```
+
+Mặc định các pool được tạo sẽ sử dụng rule replicated_rule với rule_id:0
+
+Tạo mới một bucket root mới
+
+`ceph osd crush add-bucket ssd_disk root`
+
+Kiểm tra
+
+```
+[root@ceph1 my-cluster]# ceph osd tree
+ID  CLASS WEIGHT  TYPE NAME      STATUS REWEIGHT PRI-AFF
+-13             0 root ssd_disk
+ -1       0.17014 root default
+ -3       0.09579     host ceph1
+  1   hdd 0.04790         osd.1      up  1.00000 1.00000
+  0   ssd 0.04790         osd.0      up  1.00000 1.00000
+ -5       0.05576     host ceph2
+  3   hdd 0.01859         osd.3      up  1.00000 1.00000
+  4   hdd 0.01859         osd.4      up  1.00000 1.00000
+  2   ssd 0.01859         osd.2      up  1.00000 1.00000
+ -7       0.01859     host ceph3
+  5   ssd 0.01859         osd.5      up  1.00000 1.00000
+```
+
+Create rule mới cho các ổ SSD
+
+`ceph osd crush rule create-replicated ssd_rule ssd_disk host`
+
+Kiểm tra
+
+```
+[root@ceph1 my-cluster]# ceph osd crush rule dump
+[
+    {
+        "rule_id": 0,
+        "rule_name": "replicated_rule",
+        "ruleset": 0,
+        "type": 1,
+        "min_size": 1,
+        "max_size": 10,
+        "steps": [
+            {
+                "op": "take",
+                "item": -1,
+                "item_name": "default"
+            },
+            {
+                "op": "chooseleaf_firstn",
+                "num": 0,
+                "type": "host"
+            },
+            {
+                "op": "emit"
+            }
+        ]
+    },
+    {
+        "rule_id": 1,
+        "rule_name": "ssd_rule",
+        "ruleset": 1,
+        "type": 1,
+        "min_size": 1,
+        "max_size": 10,
+        "steps": [
+            {
+                "op": "take",
+                "item": -13,
+                "item_name": "ssd_disk"
+            },
+            {
+                "op": "chooseleaf_firstn",
+                "num": 0,
+                "type": "host"
+            },
+            {
+                "op": "emit"
+            }
+        ]
+    }
+]
+```
+
+Tạo mới các bucket host cho các OSD ssd
+
+```
+ceph osd crush add-bucket ceph1_ssd host
+ceph osd crush add-bucket ceph2_ssd host
+ceph osd crush add-bucket ceph3_ssd host
+```
+
+Di chuyển các host vừa tạo vào root ssd_disk
+
+```
+ceph osd crush move ceph1_ssd root=ssd_disk
+ceph osd crush move ceph2_ssd root=ssd_disk
+ceph osd crush move ceph3_ssd root=ssd_disk
+```
+
+Di chuyển các OSD vào host tương ứng
+
+```
+ceph osd crush move osd.0 host=ceph1_ssd
+ceph osd crush move osd.2 host=ceph2_ssd
+ceph osd crush move osd.5 host=ceph3_ssd
+```
+
+Kiểm tra
+
+```
+[root@ceph1 my-cluster]# ceph osd tree
+ID  CLASS WEIGHT  TYPE NAME          STATUS REWEIGHT PRI-AFF
+-13       0.08507 root ssd_disk
+-14       0.04790     host ceph1_ssd
+  0   ssd 0.04790         osd.0          up  1.00000 1.00000
+-15       0.01859     host ceph2_ssd
+  2   ssd 0.01859         osd.2          up  1.00000 1.00000
+-16       0.01859     host ceph3_ssd
+  5   ssd 0.01859         osd.5          up  1.00000 1.00000
+ -1       0.08507 root default
+ -3       0.04790     host ceph1
+  1   hdd 0.04790         osd.1          up  1.00000 1.00000
+ -5       0.03717     host ceph2
+  3   hdd 0.01859         osd.3          up  1.00000 1.00000
+  4   hdd 0.01859         osd.4          up  1.00000 1.00000
+ -7             0     host ceph3
+```
+
+Nếu weight và reweight chưa đúng, thay đổi các thông số này thông qua câu lệnh
+
+```
+ceph osd reweight osd.0 1
+ceph osd crush reweight osd.0 0.04790
+```
+
+Chỉnh lại size cho pool data
+
+`ceph osd pool set hn.rgw.buckets.data size 2`
+
+Chỉnh lại rule cho các pool sử dụng ssd
+
+```
+ceph osd pool set .rgw.root crush_rule ssd_rule
+ceph osd pool set hn.rgw.control crush_rule ssd_rule
+ceph osd pool set hn.rgw.log crush_rule ssd_rule
+ceph osd pool set hn.rgw.meta crush_rule ssd_rule
+ceph osd pool set hn.rgw.otp crush_rule ssd_rule
+ceph osd pool set hn.rgw.buckets.non-ec crush_rule ssd_rule
+ceph osd pool set hn.rgw.buckets.index crush_rule ssd_rule
+```
+
+Kiểm tra
+
+`ceph osd pool ls detail`
+
+```
+pool 7 '.rgw.root' replicated size 3 min_size 2 crush_rule 1 object_hash rjenkins pg_num 4 pgp_num 4 autoscale_mode warn last_change 102 flags hashpspool stripe_width 0 application rgw
+pool 8 'hn.rgw.control' replicated size 3 min_size 2 crush_rule 1 object_hash rjenkins pg_num 4 pgp_num 4 autoscale_mode warn last_change 103 flags hashpspool stripe_width 0 application rgw
+pool 9 'hn.rgw.log' replicated size 3 min_size 2 crush_rule 1 object_hash rjenkins pg_num 32 pgp_num 32 autoscale_mode warn last_change 105 flags hashpspool stripe_width 0 application rgw
+pool 10 'hn.rgw.meta' replicated size 3 min_size 2 crush_rule 1 object_hash rjenkins pg_num 16 pgp_num 16 autoscale_mode warn last_change 106 flags hashpspool stripe_width 0 application rgw
+pool 11 'hn.rgw.otp' replicated size 3 min_size 2 crush_rule 1 object_hash rjenkins pg_num 4 pgp_num 4 autoscale_mode warn last_change 107 flags hashpspool stripe_width 0 application rgw
+pool 12 'hn.rgw.buckets.non-ec' replicated size 3 min_size 2 crush_rule 1 object_hash rjenkins pg_num 32 pgp_num 32 autoscale_mode warn last_change 108 flags hashpspool stripe_width 0 application rgw
+pool 13 'hn.rgw.buckets.index' replicated size 3 min_size 2 crush_rule 1 object_hash rjenkins pg_num 128 pgp_num 128 autoscale_mode warn last_change 111 flags hashpspool stripe_width 0 application rgw
+pool 14 'hn.rgw.buckets.data' replicated size 2 min_size 2 crush_rule 0 object_hash rjenkins pg_num 256 pgp_num 256 autoscale_mode warn last_change 86 flags hashpspool stripe_width 0 application rgw
+```
