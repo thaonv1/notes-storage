@@ -79,8 +79,8 @@ Sau khi tải về xong, copy toàn bộ các package trong các thư mục /tmp
 
 ```
 mv /tmp/SRPMS/download.ceph.com/rpm-luminous/el7/SRPMS/* /var/www/html/repos/SRPMS/
-mv /tmp/SRPMS/download.ceph.com/rpm-luminous/el7/noarch/* /var/www/html/repos/noarch/
-mv /tmp/SRPMS/download.ceph.com/rpm-luminous/el7/x86_64/* /var/www/html/repos/x86_64/
+mv /tmp/noarch/download.ceph.com/rpm-luminous/el7/noarch/* /var/www/html/repos/noarch/
+mv /tmp/x86_64/download.ceph.com/rpm-luminous/el7/x86_64/* /var/www/html/repos/x86_64/
 
 cd /var/www/html/repos/x86_64/ && rm -rf repodata index.html
 cd /var/www/html/repos/SRPMS/ && rm -rf repodata index.html
@@ -132,6 +132,40 @@ Restart lại nginx sau đó truy cập lại kiểm tra
 - Tham khảo cách cài đặt ceph cluster 3 node bằng ceph deploy tại link sau
 
 https://github.com/thaonguyenvan/notes-storage/blob/master/ceph/setup/ceph-deploy-mimic-centos7.md
+
+- Tới bước cài đặt ceph-deploy, ta sẽ khai báo repo local như sau
+
+```
+cat <<EOF> /etc/yum.repos.d/ceph.repo
+[ceph]
+name=Ceph packages for $basearch
+baseurl=http://10.10.11.243/x86_64/
+enabled=1
+priority=2
+gpgcheck=0
+gpgkey=https://download.ceph.com/keys/release.asc
+
+[ceph-noarch]
+name=Ceph noarch packages
+baseurl=http://10.10.11.243/noarch
+enabled=1
+priority=2
+gpgcheck=0
+gpgkey=https://download.ceph.com/keys/release.asc
+
+[ceph-source]
+name=Ceph source packages
+baseurl=http://10.10.11.243/SRPMS
+enabled=0
+priority=2
+gpgcheck=0
+gpgkey=https://download.ceph.com/keys/release.asc
+EOF
+```
+
+- Sau đó cái ceph-deploy như bình thường
+
+`yum -y install ceph-deploy`
 
 - Tới bước sửa dụng ceph deploy để install, ta sẽ sử dụng câu lệnh thay thế như sau
 
