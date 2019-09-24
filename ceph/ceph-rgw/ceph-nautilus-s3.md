@@ -137,10 +137,10 @@ EOF
 - Khởi tạo và copy key sang các máy khác
 
 ```
-ssh-keygen -t rsa -f /root/.ssh/id_rsa -q -P ""
-sudo ssh-copy-id -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa.pub cephuser@ceph1
-sudo ssh-copy-id -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa.pub cephuser@ceph2
-sudo ssh-copy-id -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa.pub cephuser@ceph3
+ssh-keygen -t rsa -f /home/cephuser/.ssh/id_rsa -q -P ""
+sudo ssh-copy-id -o StrictHostKeyChecking=no -i /home/cephuser/.ssh/id_rsa.pub cephuser@ceph1
+sudo ssh-copy-id -o StrictHostKeyChecking=no -i /home/cephuser/.ssh/id_rsa.pub cephuser@ceph2
+sudo ssh-copy-id -o StrictHostKeyChecking=no -i /home/cephuser/.ssh/id_rsa.pub cephuser@ceph3
 ```
 
 - Cấu hình time
@@ -195,7 +195,7 @@ chronyc sources
 
 - Tạo cluster
 
-`ceph-deploy new ceph1 ceph2 ceph3`
+`ceph-deploy new ceph1`
 
 - Chỉnh file cấu hình `ceph.conf`
 
@@ -203,7 +203,7 @@ chronyc sources
 [global]
 fsid = 148fb1b9-e20e-49e1-9e3a-634d0f1ca57d
 mon_initial_members = ceph01, ceph02, ceph03
-mon_host = 192.168.10.11,192.168.10.12,192.168.10.13
+mon_host = 192.168.10.11
 auth_cluster_required = cephx
 auth_service_required = cephx
 auth_client_required = cephx
@@ -296,14 +296,17 @@ mon_max_pg_per_osd = 500
 
 [client.rgw.ceph1]
 host = ceph1
+rgw frontends = beast
 rgw dns name = s3.cloudchuanchi.com
 
 [client.rgw.ceph2]
 host = ceph2
+rgw frontends = beast
 rgw dns name = s3.cloudchuanchi.com
 
 [client.rgw.ceph3]
 host = ceph3
+rgw frontends = beast
 rgw dns name = s3.cloudchuanchi.com
 ```
 
@@ -325,7 +328,14 @@ rgw dns name = s3.cloudchuanchi.com
 
 - Thêm mgr daemon
 
-`ceph-deploy mgr create ceph1`
+`ceph-deploy mgr create ceph1 ceph2 ceph3`
+
+- Add mon xuống 2 node còn lại
+
+```
+ceph-deploy mon add ceph2
+ceph-deploy mon add ceph3
+```
 
 - Kiểm tra trạng thái
 
