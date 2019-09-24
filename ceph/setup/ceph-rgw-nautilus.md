@@ -28,7 +28,6 @@ sudo firewall-cmd --reload
 
 ```
 cd my-cluster
-ceph-deploy install --rgw ceph1 ceph2 ceph3
 ceph-deploy rgw create ceph1 ceph2 ceph3
 ```
 
@@ -373,3 +372,195 @@ pool 12 'hn.rgw.buckets.non-ec' replicated size 3 min_size 2 crush_rule 1 object
 pool 13 'hn.rgw.buckets.index' replicated size 3 min_size 2 crush_rule 1 object_hash rjenkins pg_num 128 pgp_num 128 autoscale_mode warn last_change 111 flags hashpspool stripe_width 0 application rgw
 pool 14 'hn.rgw.buckets.data' replicated size 2 min_size 2 crush_rule 0 object_hash rjenkins pg_num 256 pgp_num 256 autoscale_mode warn last_change 86 flags hashpspool stripe_width 0 application rgw
 ```
+
+- Tạo realm `vn`
+
+`radosgw-admin realm create --rgw-realm=vn --default`
+
+- Tạo zone group `hn`
+
+`radosgw-admin zonegroup create --rgw-zonegroup=vn --master --default`
+
+- Tạo zone `hn1`
+
+`radosgw-admin zone create --rgw-zonegroup=vn --rgw-zone=hn --master --default`
+
+- Update commit
+
+`radosgw-admin period update --commit`
+
+- Trỏ dns tới ip vip của nginx sau này
+
+<img src="">
+
+### 4. Cấu hình Nginx
+
+#### 4.1 Cấu hình nginx trên cả 2 node
+
+- Cài đặt
+
+```
+yum install epel-release -y
+yum install nginx -y
+```
+
+- Start
+
+`systemctl enable --now nginx`
+
+- Cấu hình virtual host cho rgw
+
+```
+cat << EOF >> /etc/nginx/conf.d/radosgw.conf
+upstream radosgw{
+  server 192.168.62.11:7480;
+  server 192.168.62.12:7480;
+  server 192.168.62.13:7480;
+}
+
+server {
+
+        listen 80;
+        server_name *.cloudchuanchi.com;
+
+        location / {
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_pass http://radosgw;
+                client_max_body_size 0;
+        }
+}
+EOF
+```
+
+- Check và reload nginx
+
+```
+nginx -t
+nginx -s reload
+```
+
+- Thêm config vào file `ceph.conf` trong thư mục `my-cluster`
+
+```
+[client.rgw.ceph1]
+host = ceph1
+rgw dns name = s3.cloudchuanchi.com
+
+[client.rgw.ceph2]
+host = ceph2
+rgw dns name = s3.cloudchuanchi.com
+
+[client.rgw.ceph3]
+host = ceph3
+rgw dns name = s3.cloudchuanchi.com
+```
+
+Sau đó chuyển cấu hình qua 3 node và thực hiện restart lại service radosgw
+
+```
+ceph-deploy --overwrite-conf config push ceph1 ceph2 ceph3
+systemctl restart ceph-radosgw@rgw.$(hostname -s)
+```
+
+- Truy cập vào địa chỉ `s3.cloudchuanchi.com` và kiểm tra
+
+<img src="">
+
+- Cài đặt keepalived
+
+`yum install -y keepalived`
+
+- Thêm sysctl conf
+
+```
+echo "net.ipv4.ip_nonlocal_bind = 1" >> /etc/sysctl.conf
+echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
+sysctl -p
+```
+
+- Backup cấu hình
+
+`cp /etc/keepalived/keepalived.{conf,conf.bk}`
+
+- Cấu hình keepalived trên node nginx master
+
+```
+cat << EOF > /etc/keepalived/keepalived.conf
+vrrp_script chk_nginx {
+        script "killall -0 nginx"     
+        interval 2
+        weight 4
+}
+
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    mcast_src_ip 103.124.92.18
+    virtual_router_id 50
+    priority 100
+    advert_int 1
+    authentication {
+        auth_type AH
+        auth_pass S3@Cloud365
+    }
+    virtual_ipaddress {
+        103.124.92.22
+    }
+    track_script
+    {
+        chk_nginx
+    }
+}
+EOF
+```
+
+- Cấu hình trên node backup
+
+```
+cat << EOF > /etc/keepalived/keepalived.conf
+vrrp_script chk_nginx {
+        script "killall -0 nginx"     
+        interval 2
+        weight 4
+}
+
+vrrp_instance VI_1 {
+    state BACKUP
+    interface eth0
+    mcast_src_ip 103.124.92.20
+    virtual_router_id 50
+    priority 98
+    advert_int 1
+    authentication {
+        auth_type AH
+        auth_pass S3@Cloud365
+    }
+    virtual_ipaddress {
+        103.124.92.22
+    }
+    track_script
+    {
+        chk_nginx
+    }
+}
+EOF
+```
+
+- Thêm firewalld
+
+```
+firewall-cmd --direct --permanent --add-rule ipv4 filter INPUT 0 --in-interface eth0 --destination 224.0.0.0/8 --protocol vrrp -j ACCEPT
+firewall-cmd --direct --permanent --add-rule ipv4 filter OUTPUT 0 --out-interface eth0 --destination 224.0.0.0/8 --protocol ah -j ACCEPT
+firewall-cmd --direct --permanent --add-rule ipv4 filter INPUT 0 --in-interface eth0 --destination 224.0.0.0/8 --protocol vrrp -j ACCEPT
+firewall-cmd --direct --permanent --add-rule ipv4 filter OUTPUT 0 --out-interface eth0 --destination 224.0.0.0/8 --protocol ah -j ACCEPT
+firewall-cmd --reload
+```
+
+- Start service
+
+`systemctl enable --now keepalived`
+
+- Kiểm tra bằng cách truy cập vào ip vip hoặc domain đã trỏ. Sau đó tắt nginx hoặc shutdown 1 node đi để kiểm tra tính HA.

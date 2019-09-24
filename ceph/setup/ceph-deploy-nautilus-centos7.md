@@ -164,6 +164,8 @@ systemctl restart chronyd.service
 chronyc sources
 ```
 
+`hwclock --systohc`
+
 ### 2.3 Cấu hình trên 2 node còn lại
 
 - Đồng bộ time
@@ -178,6 +180,8 @@ systemctl start chronyd.service
 systemctl restart chronyd.service
 chronyc sources
 ```
+
+`hwclock --systohc`
 
 ## 3. Hướng dẫn khởi tạo cluster bằng ceph-deploy
 
