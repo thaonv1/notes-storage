@@ -121,6 +121,7 @@ yum update -y
 - Cấu hình ssh config
 
 ```
+su cephuser
 cat <<EOF>>  ~/.ssh/config
 Host ceph1
    Hostname ceph1
@@ -203,7 +204,7 @@ chronyc sources
 ```
 [global]
 fsid = 148fb1b9-e20e-49e1-9e3a-634d0f1ca57d
-mon_initial_members = ceph01, ceph02, ceph03
+mon_initial_members = ceph1
 mon_host = 192.168.10.11
 auth_cluster_required = cephx
 auth_service_required = cephx
@@ -390,3 +391,7 @@ Truy cập vào theo địa chỉ `https://<ip-ceph01>:8443` để kiểm tra
 - Tạo osd lưu service pool
 
 `ceph-volume lvm create --bluestore --data ceph-db-0/index-0`
+
+### 3. Cấu hình RGW
+
+Cấu hình theo hướng dẫn [tại đây](https://github.com/thaonguyenvan/notes-storage/blob/master/ceph/setup/ceph-rgw-nautilus.md)

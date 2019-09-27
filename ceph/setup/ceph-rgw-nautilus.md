@@ -391,7 +391,7 @@ pool 14 'hn.rgw.buckets.data' replicated size 2 min_size 2 crush_rule 0 object_h
 
 - Trỏ dns tới ip vip của nginx sau này
 
-<img src="">
+<img src="https://i.imgur.com/viWyTrL.png">
 
 ### 4. Cấu hình Nginx
 
@@ -467,7 +467,7 @@ systemctl restart ceph-radosgw@rgw.$(hostname -s)
 
 - Truy cập vào địa chỉ `s3.cloudchuanchi.com` và kiểm tra
 
-<img src="">
+<img src="https://i.imgur.com/6xCM9X7.png">
 
 - Cài đặt keepalived
 
