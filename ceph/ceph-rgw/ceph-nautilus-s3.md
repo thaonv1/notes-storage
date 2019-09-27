@@ -297,17 +297,14 @@ mon_max_pg_per_osd = 500
 
 [client.rgw.ceph1]
 host = ceph1
-rgw frontends = beast
 rgw dns name = s3.cloudchuanchi.com
 
 [client.rgw.ceph2]
 host = ceph2
-rgw frontends = beast
 rgw dns name = s3.cloudchuanchi.com
 
 [client.rgw.ceph3]
 host = ceph3
-rgw frontends = beast
 rgw dns name = s3.cloudchuanchi.com
 ```
 
