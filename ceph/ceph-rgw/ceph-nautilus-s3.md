@@ -137,7 +137,8 @@ EOF
 - Khởi tạo và copy key sang các máy khác
 
 ```
-ssh-keygen -t rsa -f /home/cephuser/.ssh/id_rsa -q -P ""
+su cephuser
+ssh-keygen -t rsa
 sudo ssh-copy-id -o StrictHostKeyChecking=no -i /home/cephuser/.ssh/id_rsa.pub cephuser@ceph1
 sudo ssh-copy-id -o StrictHostKeyChecking=no -i /home/cephuser/.ssh/id_rsa.pub cephuser@ceph2
 sudo ssh-copy-id -o StrictHostKeyChecking=no -i /home/cephuser/.ssh/id_rsa.pub cephuser@ceph3
