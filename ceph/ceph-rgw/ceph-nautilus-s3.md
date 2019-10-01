@@ -114,37 +114,6 @@ EOF
 yum update -y
 ```
 
-- Cài đặt ceph-deploy
-
-`yum install -y ceph-deploy`
-
-- Cấu hình ssh config
-
-```
-su cephuser
-cat <<EOF>>  ~/.ssh/config
-Host ceph1
-   Hostname ceph1
-   User cephuser
-Host ceph2
-   Hostname ceph2
-   User cephuser
-Host ceph3
-   Hostname ceph3
-   User cephuser
-EOF
-```
-
-- Khởi tạo và copy key sang các máy khác
-
-```
-su cephuser
-ssh-keygen -t rsa
-sudo ssh-copy-id -o StrictHostKeyChecking=no -i /home/cephuser/.ssh/id_rsa.pub cephuser@ceph1
-sudo ssh-copy-id -o StrictHostKeyChecking=no -i /home/cephuser/.ssh/id_rsa.pub cephuser@ceph2
-sudo ssh-copy-id -o StrictHostKeyChecking=no -i /home/cephuser/.ssh/id_rsa.pub cephuser@ceph3
-```
-
 - Cấu hình time
 
 ```
@@ -165,6 +134,20 @@ chronyc sources
 - Set hwclock
 
 `hwclock --systohc`
+
+- Cài đặt ceph-deploy
+
+`yum install -y ceph-deploy`
+
+- Khởi tạo và copy key sang các máy khác
+
+```
+su cephuser
+ssh-keygen -t rsa
+ssh-copy-id cephuser@ceph1
+ssh-copy-id cephuser@ceph2
+ssh-copy-id cephuser@ceph3
+```
 
 #### 1.3 Thực hiện trên 2 node còn lại
 
