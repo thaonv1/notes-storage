@@ -36,9 +36,9 @@
 
 ```
 cat <<EOF>> /etc/hosts
-192.168.10.11 ceph1
-192.168.10.12 ceph2
-192.168.10.13 ceph3
+192.168.62.11 ceph1
+192.168.62.12 ceph2
+192.168.62.13 ceph3
 EOF
 ```
 
@@ -149,12 +149,32 @@ ssh-copy-id cephuser@ceph2
 ssh-copy-id cephuser@ceph3
 ```
 
+- Cấu hình ssh config
+
+```
+cat <<EOF>>  ~/.ssh/config
+Host ceph1
+   Hostname ceph1
+   User cephuser
+Host ceph2
+   Hostname ceph2
+   User cephuser
+Host ceph3
+   Hostname ceph3
+   User cephuser
+EOF
+```
+
+- Phân quyền
+
+`chmod 600 ~/.ssh/config`
+
 #### 1.3 Thực hiện trên 2 node còn lại
 
 - Đồng bộ time
 
 ```
-sed -i 's/server 0.centos.pool.ntp.org iburst/server 192.168.10.11 iburst/g' /etc/chrony.conf
+sed -i 's/server 0.centos.pool.ntp.org iburst/server 192.168.64.11 iburst/g' /etc/chrony.conf
 sed -i 's/server 1.centos.pool.ntp.org iburst/#/g' /etc/chrony.conf
 sed -i 's/server 2.centos.pool.ntp.org iburst/#/g' /etc/chrony.conf
 sed -i 's/server 3.centos.pool.ntp.org iburst/#/g' /etc/chrony.conf
@@ -188,12 +208,12 @@ chronyc sources
 [global]
 fsid = 148fb1b9-e20e-49e1-9e3a-634d0f1ca57d
 mon_initial_members = ceph1
-mon_host = 192.168.10.11
+mon_host = 192.168.62.11
 auth_cluster_required = cephx
 auth_service_required = cephx
 auth_client_required = cephx
 
-osd pool default size = 2
+osd pool default size = 3
 osd pool default min size = 1
 osd pool default pg num = 128
 osd pool default pgp num = 128
@@ -206,8 +226,8 @@ osd pool default pgp num = 128
 # 3 for a multi node cluster with hosts across racks, etc.
 osd_crush_chooseleaf_type = 1
 
-public network = 192.168.10.0/24
-cluster network = 192.168.10.0/24
+public network = 192.168.62.0/24
+cluster network = 192.168.63.0/24
 
 # Debug config
 debug_lockdep = 0/0
@@ -326,17 +346,22 @@ ceph-deploy mon add ceph3
 
 `ceph -s`
 
+- Cài đặt ceph dashboard
+
+`yum install ceph-mgr-dashboard -y`
+
 - Enable dashboard trên host mgr (ceph1)
 
 ```
-yum install ceph-mgr-dashboard -y
 ceph mgr module enable dashboard
 ceph dashboard create-self-signed-cert
 ceph dashboard set-login-credentials <username> <password>
 ceph mgr services
 ```
 
-Truy cập vào theo địa chỉ `https://<ip-ceph01>:8443` để kiểm tra
+Truy cập vào theo địa chỉ `https://<ip-ceph1>:8443` để kiểm tra
+
+<img src="https://i.imgur.com/g9lGIb7.png">
 
 #### Tạo osd
 
@@ -378,6 +403,232 @@ Truy cập vào theo địa chỉ `https://<ip-ceph01>:8443` để kiểm tra
 
 `ceph-volume lvm create --bluestore --data ceph-db-0/index-0`
 
+
 ### 3. Cấu hình RGW
 
 Cấu hình theo hướng dẫn [tại đây](https://github.com/thaonguyenvan/notes-storage/blob/master/ceph/setup/ceph-rgw-nautilus.md)
+
+- Thêm user cho dashboard
+
+`radosgw-admin user create --uid=<user_id> --display-name=<display_name> \
+    --system`
+
+- Cung cấp thông tin cho dashboard
+
+```
+$ ceph dashboard set-rgw-api-access-key <access_key>
+$ ceph dashboard set-rgw-api-secret-key <secret_key>
+```
+
+- Kiểm tra trên dashboard
+
+<img src="https://i.imgur.com/NDRnL8B.png">
+
+
+### 4. Cấu hình nginx
+
+- Cài đặt
+
+```
+yum install epel-release -y
+yum install nginx -y
+```
+
+- Start
+
+`systemctl enable --now nginx`
+
+- Cấu hình virtual host cho rgw trên cả 2 node
+
+```
+cat << EOF >> /etc/nginx/conf.d/radosgw.conf
+upstream radosgw{
+  server 192.168.62.11:7480;
+  server 192.168.62.12:7480;
+  server 192.168.62.13:7480;
+}
+
+server {
+
+        listen 80;
+        server_name *.cloudchuanchi.com;
+
+        location / {
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_pass http://radosgw;
+                client_max_body_size 0;
+        }
+}
+EOF
+```
+
+- Check và reload nginx
+
+```
+nginx -t
+nginx -s reload
+```
+
+- Truy cập vào địa chỉ `s3.cloudchuanchi.com` và kiểm tra
+
+<img src="https://i.imgur.com/6xCM9X7.png">
+
+- Cài đặt keepalived
+
+`yum install -y keepalived`
+
+- Thêm sysctl conf
+
+```
+echo "net.ipv4.ip_nonlocal_bind = 1" >> /etc/sysctl.conf
+echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
+sysctl -p
+```
+
+- Backup cấu hình
+
+`cp /etc/keepalived/keepalived.{conf,conf.bk}`
+
+- Cấu hình keepalived trên node nginx master
+
+```
+cat << EOF > /etc/keepalived/keepalived.conf
+vrrp_script chk_nginx {
+        script "killall -0 nginx"     
+        interval 2
+        weight 4
+}
+
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    mcast_src_ip 103.124.92.18
+    virtual_router_id 50
+    priority 100
+    advert_int 1
+    authentication {
+        auth_type AH
+        auth_pass S3@Cloud365
+    }
+    virtual_ipaddress {
+        103.124.92.22
+    }
+    track_script
+    {
+        chk_nginx
+    }
+}
+EOF
+```
+
+- Cấu hình trên node backup
+
+```
+cat << EOF > /etc/keepalived/keepalived.conf
+vrrp_script chk_nginx {
+        script "killall -0 nginx"     
+        interval 2
+        weight 4
+}
+
+vrrp_instance VI_1 {
+    state BACKUP
+    interface eth0
+    mcast_src_ip 103.124.92.20
+    virtual_router_id 50
+    priority 98
+    advert_int 1
+    authentication {
+        auth_type AH
+        auth_pass S3@Cloud365
+    }
+    virtual_ipaddress {
+        103.124.92.22
+    }
+    track_script
+    {
+        chk_nginx
+    }
+}
+EOF
+```
+
+- Thêm firewalld
+
+```
+firewall-cmd --direct --permanent --add-rule ipv4 filter INPUT 0 --in-interface eth0 --destination 224.0.0.0/8 --protocol vrrp -j ACCEPT
+firewall-cmd --direct --permanent --add-rule ipv4 filter OUTPUT 0 --out-interface eth0 --destination 224.0.0.0/8 --protocol ah -j ACCEPT
+firewall-cmd --direct --permanent --add-rule ipv4 filter INPUT 0 --in-interface eth0 --destination 224.0.0.0/8 --protocol vrrp -j ACCEPT
+firewall-cmd --direct --permanent --add-rule ipv4 filter OUTPUT 0 --out-interface eth0 --destination 224.0.0.0/8 --protocol ah -j ACCEPT
+firewall-cmd --reload
+```
+
+- Start service
+
+`systemctl enable --now keepalived`
+
+- Kiểm tra bằng cách truy cập vào ip vip hoặc domain đã trỏ. Sau đó tắt nginx hoặc shutdown 1 node đi để kiểm tra tính HA.
+
+### 5. Cấu hình SSL
+
+- Cài đặt cert-bot
+
+`yum install certbot-nginx -y`
+
+- Tạo cert trên 1 node
+
+```
+sudo certbot --server https://acme-v02.api.letsencrypt.org/directory -d \
+*.s3.cloudchuanchi.com -d s3.cloudchuanchi.com --manual --preferred-challenges dns-01 certonly --agree-tos
+```
+
+- Trong quá trình tạo cert ta sẽ phải thêm 2 bản tin dns txt, chờ 1 vài phút cho các bản tin dns cập nhật rồi bấm enter
+
+- Sau đó bổ sung thêm config cho node ta vừa tạo cert
+
+```
+upstream radosgw{
+  server 192.168.62.11:7480;
+  server 192.168.62.12:7480;
+  server 192.168.62.13:7480;
+}
+
+server {
+
+#       listen 80;
+        server_name *.cloudchuanchi.com;
+
+        location / {
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_pass http://radosgw;
+                client_max_body_size 0;
+		            proxy_buffering off;
+            	  proxy_request_buffering off;
+        }
+        listen 443 ssl;
+        server_name *.cloudchuanchi.com;
+        ssl_certificate /etc/letsencrypt/live/s3.cloudchuanchi.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/s3.cloudchuanchi.com/privkey.pem;
+}
+server {
+        server_name *.cloudchuanchi.com;
+	      return 301 https://$host$request_uri;
+}
+```
+
+- Reload lại nginx và kiểm tra
+
+- Copy cert sang con còn lại
+
+```
+scp /etc/letsencrypt/live/s3.cloudchuanchi.com/fullchain.pem root@ip-nginx2
+scp /etc/letsencrypt/live/s3.cloudchuanchi.com/privkey.pem root@ip-nginx2
+```
+
+- Reload lại nginx bên node còn lại
