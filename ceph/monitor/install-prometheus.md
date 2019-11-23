@@ -205,3 +205,41 @@ systemctl restart prometheus
 ```
 
 Giờ ta có thể thực hiện query tới các node exporter từ prometheus server.
+
+## 3. Install grafana
+
+Thêm repo `/etc/yum.repos.d/grafana.repo`
+
+```
+[grafana]
+name=grafana
+baseurl=https://packages.grafana.com/oss/rpm
+repo_gpgcheck=1
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.grafana.com/gpg.key
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+```
+
+Install grafana
+
+`yum install grafana -y`
+
+```
+yum install fontconfig freetype* urw-fonts -y
+```
+
+Start grafana
+
+```
+systemctl start grafana-server
+systemctl enable grafana-server.service
+```
+
+Install plugin
+
+```
+grafana-cli plugins install vonage-status-panel
+grafana-cli plugins install grafana-piechart-panel
+```

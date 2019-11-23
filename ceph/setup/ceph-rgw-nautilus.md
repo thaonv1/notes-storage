@@ -379,19 +379,23 @@ pool 14 'hn.rgw.buckets.data' replicated size 2 min_size 2 crush_rule 0 object_h
 
 - Tạo zone group `hn`
 
-`radosgw-admin zonegroup create --rgw-zonegroup=vn --master --default`
+`radosgw-admin zonegroup create --rgw-zonegroup=hn --master --default`
 
-- Tạo zone `hn1`
+- Tạo zone `hn`
 
-`radosgw-admin zone create --rgw-zonegroup=vn --rgw-zone=hn --master --default`
+`radosgw-admin zone create --rgw-zonegroup=hn --rgw-zone=hn --master --default`
 
 - Update commit
 
 `radosgw-admin period update --commit`
 
+- Restart lại service trên cả 3 node
+
+`systemctl restart ceph-radosgw@rgw.$(hostname)`
+
 - Trỏ dns tới ip vip của nginx sau này
 
-<img src="https://i.imgur.com/viWyTrL.png">
+<img src="https://i.imgur.com/gmrG8hx.png">
 
 ### 4. Cấu hình Nginx
 
@@ -448,14 +452,20 @@ nginx -s reload
 [client.rgw.ceph1]
 host = ceph1
 rgw dns name = s3.cloudchuanchi.com
+rgw enable static website = true
+rgw dns s3website name = web.cloudchuanchi.com
 
 [client.rgw.ceph2]
 host = ceph2
 rgw dns name = s3.cloudchuanchi.com
+rgw enable static website = true
+rgw dns s3website name = web.cloudchuanchi.com
 
 [client.rgw.ceph3]
 host = ceph3
 rgw dns name = s3.cloudchuanchi.com
+rgw enable static website = true
+rgw dns s3website name = web.cloudchuanchi.com
 ```
 
 Sau đó chuyển cấu hình qua 3 node và thực hiện restart lại service radosgw

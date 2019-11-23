@@ -53,18 +53,30 @@ scrape_configs:
 
 `git clone https://github.com/thaonguyenvan/radosgw_usage_exporter.git`
 
+- Cài đặt pip
+
+```
+yum install python-pip -y
+yum install python-devel -y
+yum groupinstall 'development tools' -y
+```
+
 - Cài đặt
 
 ```
 cd radosgw_usage_exporter
-pip install requirements.txt
+pip install -r requirements.txt
 ```
+
+Nếu gặp lỗi liên quan tới `requests>=2.20.0`, sửa lại file `requirements.txt`
+
+`requests>=2.6.0`
 
 - Chạy thử bằng tay
 
 ```
 chmod +x radosgw_usage_exporter.py
-radosgw_usage_exporter.py [-H HOST] [-e ADMIN_ENTRY] [-a ACCESS_KEY] [-s SECRET_KEY] [-p PORT]
+python radosgw_usage_exporter.py [-H HOST] [-e ADMIN_ENTRY] [-a ACCESS_KEY] [-s SECRET_KEY] [-p PORT]
 ```
 
 - Tạo user cho exporter

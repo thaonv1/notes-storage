@@ -363,6 +363,7 @@ Truy cập vào theo địa chỉ `https://<ip-ceph1>:8443` để kiểm tra
 
 <img src="https://i.imgur.com/g9lGIb7.png">
 
+
 #### Tạo osd
 
 - Ví dụ ta có 2 ổ là `sdb` dùng để lưu block db + service pools và `sdc` để lưu data
@@ -416,8 +417,8 @@ Cấu hình theo hướng dẫn [tại đây](https://github.com/thaonguyenvan/n
 - Cung cấp thông tin cho dashboard
 
 ```
-$ ceph dashboard set-rgw-api-access-key <access_key>
-$ ceph dashboard set-rgw-api-secret-key <secret_key>
+ceph dashboard set-rgw-api-access-key <access_key>
+ceph dashboard set-rgw-api-secret-key <secret_key>
 ```
 
 - Kiểm tra trên dashboard
