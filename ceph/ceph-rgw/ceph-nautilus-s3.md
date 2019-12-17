@@ -582,8 +582,7 @@ firewall-cmd --reload
 - Tạo cert trên 1 node
 
 ```
-sudo certbot --server https://acme-v02.api.letsencrypt.org/directory -d \
-*.s3.cloudchuanchi.com -d s3.cloudchuanchi.com --manual --preferred-challenges dns-01 certonly --agree-tos
+sudo certbot certonly --server https://acme-v02.api.letsencrypt.org/directory   --manual   --preferred-challenges dns-01   -d s3.smartstorage.cloud   -d web.smartstorage.cloud   -d *.s3.smartstorage.cloud   -d *.web.smartstorage.cloud   --agree-tos   --manual-public-ip-logging-ok
 ```
 
 - Trong quá trình tạo cert ta sẽ phải thêm 2 bản tin dns txt, chờ 1 vài phút cho các bản tin dns cập nhật rồi bấm enter
