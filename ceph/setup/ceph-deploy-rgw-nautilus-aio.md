@@ -196,6 +196,10 @@ osd crush chooseleaf type = 0
 
 public network = 10.10.11.0/24
 cluster network = 10.10.11.0/24
+
+[client.rgw.cephaio]
+host = cephaio
+rgw enable usage log = true
 EOF
 ```
 
@@ -290,6 +294,22 @@ default.rgw.buckets.index
 Mặc định , RGW sử dụng port 7480
 
 <img src="https://i.imgur.com/FbX8EMY.png">
+
+- Thêm user cho dashboard
+
+`radosgw-admin user create --uid=<user_id> --display-name=<display_name> \
+    --system`
+
+- Cung cấp thông tin cho dashboard
+
+```
+ceph dashboard set-rgw-api-access-key <access_key>
+ceph dashboard set-rgw-api-secret-key <secret_key>
+```
+
+- Kiểm tra trên dashboard
+
+<img src="https://i.imgur.com/NDRnL8B.png">
 
 Để tạo radosgw user
 
