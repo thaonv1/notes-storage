@@ -461,6 +461,25 @@ server {
                 proxy_set_header X-Forwarded-Proto $scheme;
                 proxy_pass http://radosgw;
                 client_max_body_size 0;
+                proxy_buffering off;
+                proxy_request_buffering off;
+                if ($request_method = 'OPTIONS') {
+                    add_header 'Access-Control-Allow-Origin' 'xxx.com';
+                    add_header 'Access-Control-Allow-Methods' 'PUT';
+                    add_header 'Access-Control-Allow-Headers' 'authorization,content-type,x-amz-acl,x-amz-date,x-amz-user-agent';
+                    add_header 'Content-Type' 'text/plain; charset=utf-8';
+                    add_header 'Content-Length' 0;
+                    return 204;
+                }
+                    if ($request_method = 'POST') {
+                    add_header 'Access-Control-Allow-Origin' 'xxx.com';
+                }
+                if ($request_method = 'GET') {
+                    add_header 'Access-Control-Allow-Origin' 'xxx.com';
+                }
+                if ($request_method = 'PUT') {
+                    add_header 'Access-Control-Allow-Origin' 'xxx.com';
+                }
         }
 }
 EOF
