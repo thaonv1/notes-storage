@@ -193,8 +193,11 @@ ceph auth get-key client.cinder | ssh 192.168.80.132 tee /root/client.cinder.key
 Gõ lệnh `uuidgen` tại CEPH1 và lưu output để sử dụng cho bước sau, giả sử output là 
 
 ```
-a8b264e0-a34f-4dff-b8e4-0104221ba6a9
+edccdcf1-c181-491c-b539-727887281340
 ```
+
+Lưu ý: UUID này cần giống với trường `rbd_secret_uuid` khai báo trong file `/etc/cinder/cinder.conf` trên node CTL.
+
 
 ### Khai báo scret key cho Compute
 
@@ -203,7 +206,7 @@ Sử dụng output của lệnh `uuidgen` ở bên trên để tạo file `secre
 ```
 cat > secret.xml <<EOF
 <secret ephemeral='no' private='no'>
-  <uuid>a8b264e0-a34f-4dff-b8e4-0104221ba6a9</uuid>
+  <uuid>edccdcf1-c181-491c-b539-727887281340</uuid>
   <usage type='ceph'>
     <name>client.cinder secret</name>
   </usage>
@@ -215,7 +218,7 @@ Thực hiện lệnh để áp vào compute. Nhớ thay chuỗi trong kết qu�
 
 ```
 sudo virsh secret-define --file secret.xml
-virsh secret-set-value --secret a8b264e0-a34f-4dff-b8e4-0104221ba6a9 --base64 $(cat client.cinder.key)
+virsh secret-set-value --secret edccdcf1-c181-491c-b539-727887281340 --base64 $(cat client.cinder.key)
 ```
 
 Khởi động lại service 
